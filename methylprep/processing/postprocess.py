@@ -80,11 +80,12 @@ def consolidate_values_for_sheet(data_containers, postprocess_func_colname='beta
     for idx,sample in enumerate(data_containers):
         sample_id = f"{sample.sample.sentrix_id}_{sample.sample.sentrix_position}"
 
-        if poobah == True and poobah_column in sample._SampleDataContainer__data_frame.columns:
-            # remove all failed probes by replacing with NaN before building DF.
-            sample._SampleDataContainer__data_frame.loc[sample._SampleDataContainer__data_frame[poobah_column] >= poobah_sig, postprocess_func_colname] = np.nan
-        elif poobah == True and poobah_column not in sample._SampleDataContainer__data_frame.columns:
-            LOGGER.warning('DEBUG: missing poobah')
+        ## NAH - Give us all the probes every time SMH: Mauro
+        # if poobah == True and poobah_column in sample._SampleDataContainer__data_frame.columns:
+        #     # remove all failed probes by replacing with NaN before building DF
+        #     sample._SampleDataContainer__data_frame.loc[sample._SampleDataContainer__data_frame[poobah_column] >= poobah_sig, postprocess_func_colname] = np.nan
+        # elif poobah == True and poobah_column not in sample._SampleDataContainer__data_frame.columns:
+        #     LOGGER.warning('DEBUG: missing poobah')
 
         if sample.quality_mask == True and quality_mask in sample._SampleDataContainer__data_frame.columns:
             # blank there probes where quality_mask == 0
