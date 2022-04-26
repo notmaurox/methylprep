@@ -50,11 +50,14 @@ def infer_type_I_probes(container, debug=False):
     FailedR = sum(np.where(red_I_channel.index.isin(channels['IR'].index) & ~big_idx, True, False))
     FailedG = sum(np.where(green_I_channel.index.isin(channels['IG'].index) & ~big_idx, True, False))
 
-    if debug:
-        print(f"min_ib: {min_ib}, %swapped: {round(100-percent_probes_ok,3)} ({count_probes_to_swap})")
-        print('R2R', R2R, 'G2G', G2G)
-        print('R2G', R2G, 'G2R', G2R)
-        print('FailedR', FailedR, 'FailedG', FailedG)
+    container.data_dict["sample_id"] = container.sample.sentrix_id
+    container.data_dict["sample_pos"] = container.sample.sentrix_position
+    container.data_dict["min_ib"] = min_ib
+    container.data_dict["percent_swapped"] = round(100-percent_probes_ok, 3)
+    container.data_dict["count_swapped"] = count_probes_to_swap
+    container.data_dict["R2R"], container.data_dict["G2G"] = int(R2R), int(G2G)
+    container.data_dict["R2G"], container.data_dict["G2R"] = int(R2G), int(G2R)
+    container.data_dict["FailedR"], container.data_dict["FailedG"] = int(FailedR), int(FailedG)
 
     # finally, actually swap these probe values in the container and return nothing.
     R2G_mask = np.where(red_I_channel.index.isin(channels['IR'].index) & ~red_idx & big_idx, True, False)
@@ -71,15 +74,22 @@ def infer_type_I_probes(container, debug=False):
     G2R_illumina_ids = [lookupIG[i] for i in green_I_channel.index[G2R_mask]]
     mask = container.red_idat.probe_means.index.isin(R2G_illumina_ids + G2R_illumina_ids)
     pre_red = container.red_idat.probe_means.copy()
+    container.data_dict["pre_swap_red_mean"] = float(pre_red.mean())
+    container.data_dict["pre_swap_red_std"] = float(pre_red.std())
     pre_green = container.green_idat.probe_means.copy()
+    container.data_dict["pre_swap_grn_mean"] = float(pre_green.mean())
+    container.data_dict["pre_swap_grn_std"] = float(pre_green.std())
     post_red = container.red_idat.probe_means.copy()
+    container.data_dict["post_swap_red_mean"] = float(post_red.mean())
+    container.data_dict["post_swap_red_std"] = float(post_red.std())
     post_green = container.green_idat.probe_means.copy()
+    container.data_dict["post_swap_grn_mean"] = float(post_green.mean())
+    container.data_dict["post_swap_grn_std"] = float(post_green.std())
 
     # green --> red
     post_red.loc[mask, 'mean_value'] = pre_green.loc[mask, 'mean_value']
     # original red --> green
     post_green.loc[mask, 'mean_value'] = pre_red.loc[mask, 'mean_value']
-
     container.red_switched = list(red_I_channel.index[R2G_mask])
     container.green_switched = list(green_I_channel.index[G2R_mask])
     #print(f"switched {len(container.red_switched)} red and {len(container.green_switched)} green probes")

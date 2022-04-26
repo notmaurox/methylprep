@@ -8,6 +8,9 @@ from statsmodels.distributions.empirical_distribution import ECDF
 import pandas as pd
 import numpy as np
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+
 
 def _pval_sesame_preprocess(data_container):
     """Performs p-value detection of low signal/noise probes. This ONE SAMPLE version uses meth/unmeth before it is contructed into a _SampleDataContainer__data_frame.
@@ -19,7 +22,14 @@ def _pval_sesame_preprocess(data_container):
     """
     # 2021-03-22 assumed 'mean_value' for red and green MEANT meth and unmeth (OOBS), respectively.
     funcG = ECDF(data_container.oobG['Unmeth'].values)
+    data_container.data_dict["oobG_mean"] = float(data_container.oobG['Unmeth'].values.mean())
+    data_container.data_dict["oobG_std"] = float(data_container.oobG['Unmeth'].values.std())
     funcR = ECDF(data_container.oobR['Meth'].values)
+    data_container.data_dict["oobR_mean"] = float(data_container.oobR['Meth'].values.mean())
+    data_container.data_dict["oobR_std"] = float(data_container.oobR['Meth'].values.std())
+    # sns.histplot(data=data_container.oobG['Unmeth'].values)
+    # sns.histplot(data=data_container.oobR['Meth'].values)
+    # plt.show()
     pIR = pd.DataFrame(
         index=data_container.IR.index,
         data=1-np.maximum(funcR(data_container.IR['Meth']), funcR(data_container.IR['Unmeth'])),
