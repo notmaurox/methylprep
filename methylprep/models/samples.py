@@ -110,7 +110,7 @@ Keyword Arguments:
 
         filename = f'{self.base_filename}{_suffix}.{extension}'
         alt_filename = f'{self.alternate_base_filename}{_suffix}.{extension}'
-        path = PurePath(self.data_dir, str(self.sentrix_id), filename)
+        path = PurePath(self.data_dir, "methylprep_sample_datafiles", filename)
         if verify:
             # confirm this sample IDAT file exists, and update its filepath if different.
             # if filename fails, it will check alt_filename too.

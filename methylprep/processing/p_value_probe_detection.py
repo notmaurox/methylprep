@@ -8,8 +8,11 @@ from statsmodels.distributions.empirical_distribution import ECDF
 import pandas as pd
 import numpy as np
 
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-def _pval_sesame_preprocess(data_container):
+
+def _pval_sesame_preprocess(data_container, inc_neg_ctls=True):
     """Performs p-value detection of low signal/noise probes. This ONE SAMPLE version uses meth/unmeth before it is contructed into a _SampleDataContainer__data_frame.
     - returns a dataframe of probes and their detected p-value levels.
     - this will be saved to the csv output, so it can be used to drop probes at later step.
@@ -19,7 +22,14 @@ def _pval_sesame_preprocess(data_container):
     """
     # 2021-03-22 assumed 'mean_value' for red and green MEANT meth and unmeth (OOBS), respectively.
     funcG = ECDF(data_container.oobG['Unmeth'].values)
+    data_container.data_dict["oobG_mean"] = float(data_container.oobG['Unmeth'].values.mean())
+    data_container.data_dict["oobG_std"] = float(data_container.oobG['Unmeth'].values.std())
     funcR = ECDF(data_container.oobR['Meth'].values)
+    data_container.data_dict["oobR_mean"] = float(data_container.oobR['Meth'].values.mean())
+    data_container.data_dict["oobR_std"] = float(data_container.oobR['Meth'].values.std())
+    # sns.histplot(data=data_container.oobG['Unmeth'].values)
+    # sns.histplot(data=data_container.oobR['Meth'].values)
+    # plt.show()
     pIR = pd.DataFrame(
         index=data_container.IR.index,
         data=1-np.maximum(funcR(data_container.IR['Meth']), funcR(data_container.IR['Unmeth'])),
@@ -36,50 +46,113 @@ def _pval_sesame_preprocess(data_container):
     pval = pd.concat([pIR,pIG,pII])
     return pval
 
-""" DEPRECATED FUNCTIONS (<v1.5.0)
-def detect_probes(data_containers, method='sesame', save=False, silent=True):
-    '''
-About:
-    a wrapper for the p-value probe detection methods. Tries to check inputs and rationalize them
-    with methyl-suite's standard data objects.
-
-Inputs:
-    a list of sample data_containers. The dataframe must have a 'IlMnID' for the index of probe names.
-    And probe names should be `cgxxxxxx` format to work with other methylcheck functions
-
-    To create this, use:
-
-    data_containers = methylprep.run_pipeline(data_dir,
-            save_uncorrected=True,
-            betas=True)
-    (if there are more than 200 samples, you'll need to load the data from disk instead, as nothing will be returned)
-
-    method:
-        sesame -- use the sesame ported algorithm
-        minfi -- use the minfi ported algorithm
-
-Checks:
-    data_containers must have 'meth' and 'unmeth' columns (uncorrected data)
-    the values for these columns should be between 0 and 10000s
-    (beta: 0 to 1; m_value: -neg to pos+ range)
-
-Returns:
-    dataframe of p-value filtered probes
-    '''
-    if not ('unmeth' in data_containers[0]._SampleDataContainer__data_frame.columns and
-            'meth' in data_containers[0]._SampleDataContainer__data_frame.columns):
-            raise ValueError("Provide a list of data_containers that includes uncorrected data (with 'meth' and 'unmeth' columns, using the 'save_uncorrected' option in run_pipeline)")
-    if method == 'minfi':
-        pval = pval_minfi(data_containers)
-    else:
-        pval = pval_sesame(data_containers)
-
-    if silent == False and type(mean_beta_compare) is types.FunctionType:
-        # plot it
-        # df1 and df2 are probe X sample_id matrices
-        mean_beta_compare(df1, df2, save=save, verbose=False, silent=silent)
+# This version of the function more closely matches the score reported by SeSAMe - Mauro 
+def _pval_minfi_preprocess_SeSAMe(data_container):
+    dfR = data_container.ctrl_red
+    dfR = dfR[dfR['Control_Type']=='NEGATIVE']
+    dfR = dfR[['Extended_Type','mean_value']]
+    funcR = ECDF(dfR['mean_value'].values)
+    dfG = data_container.ctrl_green
+    dfG = dfG[dfG['Control_Type']=='NEGATIVE']
+    dfG = dfG[['Extended_Type','mean_value']]
+    funcG = ECDF(dfG['mean_value'].values)
+    pIR = pd.DataFrame(
+        index=data_container.IR.index,
+        data=1-np.maximum(funcR(data_container.IR['Meth']), funcR(data_container.IR['Unmeth'])),
+        columns=['pNegECDF_pval'])
+    pIG = pd.DataFrame(
+        index=data_container.IG.index,
+        data=1-np.maximum(funcG(data_container.IG['Meth']), funcG(data_container.IG['Unmeth'])),
+        columns=['pNegECDF_pval'])
+    pII = pd.DataFrame(
+        index=data_container.II.index,
+        data=1-np.maximum(funcG(data_container.II['Meth']), funcR(data_container.II['Unmeth'])),
+        columns=['pNegECDF_pval'])
+    # concat and sort
+    pval = pd.concat([pIR, pIG, pII])
     return pval
 
+def _pval_minfi_preprocess(data_container):
+    # # negative control p-value
+    # # Pull M and U values
+    # meth = pd.DataFrame(data_containers[0]._SampleDataContainer__data_frame.index)
+    # unmeth = pd.DataFrame(data_containers[0]._SampleDataContainer__data_frame.index)
+
+    # for i,c in enumerate(data_containers):
+    #     sample = data_containers[i].sample
+    #     m = c._SampleDataContainer__data_frame.rename(columns={'meth':sample})
+    #     u = c._SampleDataContainer__data_frame.rename(columns={'unmeth':sample})
+    #     meth = pd.merge(left=meth,right=m[sample],left_on='IlmnID',right_on='IlmnID',)
+    #     unmeth = pd.merge(left=unmeth,right=u[sample],left_on='IlmnID',right_on='IlmnID')
+
+    # # Create empty dataframes for red and green negative controls
+    # negctlsR = pd.DataFrame(data_containers[0].ctrl_red['Extended_Type'])
+    # negctlsG = pd.DataFrame(data_containers[0].ctrl_green['Extended_Type'])
+
+    # # Fill red and green dataframes
+    dfR = data_container.ctrl_red
+    dfR = dfR[dfR['Control_Type']=='NEGATIVE']
+    dfR = dfR[['Extended_Type','mean_value']]
+    dfG = data_container.ctrl_green
+    dfG = dfG[dfG['Control_Type']=='NEGATIVE']
+    dfG = dfG[['Extended_Type','mean_value']]
+    negctlsR = dfR
+    negctlsG = dfG
+
+    # Reset index on dataframes
+    negctlsG = negctlsG.set_index('Extended_Type')
+    negctlsR = negctlsR.set_index('Extended_Type')
+
+    # # first pull out sections of manifest (will be used to identify which probes belong to each IG, IR, II)
+    # manifest = data_container.manifest.data_frame[['Infinium_Design_Type','Color_Channel']]
+    # IG = manifest[(manifest['Color_Channel']=='Grn') & (manifest['Infinium_Design_Type']=='I')]
+    # IR = manifest[(manifest['Color_Channel']=='Red') & (manifest['Infinium_Design_Type']=='I')]
+    # II = manifest[manifest['Infinium_Design_Type']=='II']
+
+    # # Get M and U values for IG, IR and II
+    # IG_meth = pd.merge(left=IG,right=meth,on='IlmnID').drop(columns=['Infinium_Design_Type','Color_Channel']).set_index('IlmnID')
+    # IG_unmeth = pd.merge(left=IG,right=unmeth,on='IlmnID').drop(columns=['Infinium_Design_Type','Color_Channel']).set_index('IlmnID')
+    # IR_meth = pd.merge(left=IR,right=meth,on='IlmnID').drop(columns=['Infinium_Design_Type','Color_Channel']).set_index('IlmnID')
+    # IR_unmeth = pd.merge(left=IR,right=unmeth,on='IlmnID').drop(columns=['Infinium_Design_Type','Color_Channel']).set_index('IlmnID')
+    # II_meth = pd.merge(left=II,right=meth,on='IlmnID').drop(columns=['Infinium_Design_Type','Color_Channel']).set_index('IlmnID')
+    # II_unmeth = pd.merge(left=II,right=unmeth,on='IlmnID').drop(columns=['Infinium_Design_Type','Color_Channel']).set_index('IlmnID')
+
+    # Calcuate parameters
+    sdG = stats.median_absolute_deviation(negctlsG)
+    muG = np.median(negctlsG,axis=0)
+    sdR = stats.median_absolute_deviation(negctlsR)
+    muR = np.median(negctlsR,axis=0)
+
+    # calculate p values for type 1 Red
+    pIR = pd.DataFrame(
+        index=data_container.IR.index,
+        data=1-stats.norm.cdf(
+            data_container.IR['Meth']+data_container.IR['Unmeth'],
+            2*muR, 2*sdR
+        ),
+        columns=['pNegECDF_pval']
+    )
+    # calculate p values for type 1 Green
+    pIG = pd.DataFrame(
+        index=data_container.IG.index,
+        data=1-stats.norm.cdf(
+            data_container.IG['Meth']+data_container.IG['Unmeth'],
+            2*muG, 2*sdG
+        ),
+        columns=['pNegECDF_pval']
+    )
+    # calculat4e p values for type II
+    pII = pd.DataFrame(
+        index=data_container.II.index,
+        data=1-stats.norm.cdf(
+            data_container.II['Meth']+data_container.II['Unmeth'],
+            muR+muG,sdR+sdG
+        ),
+        columns=['pNegECDF_pval']
+    )
+    # concat and sort
+    pval = pd.concat([pIR, pIG, pII])
+    return pval
 
 def _pval_minfi(data_containers):
     # negative control p-value
@@ -195,4 +268,3 @@ def _pval_sesame(data_containers):
         p = pd.concat([pIR,pIG,pII]).reset_index()
         pval = pd.merge(pval,p)
     return pval
-"""
