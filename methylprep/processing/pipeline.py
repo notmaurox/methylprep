@@ -31,7 +31,7 @@ from .postprocess import (
 )
 from ..utils import ensure_directory_exists, is_file_like
 from .preprocess import preprocess_noob, _apply_sesame_quality_mask
-from .p_value_probe_detection import _pval_sesame_preprocess, _pval_minfi_preprocess
+from .p_value_probe_detection import _pval_sesame_preprocess, _pval_minfi_preprocess, _pval_minfi_preprocess_SeSAMe
 from .infer_channel_switch import infer_type_I_probes
 from .dye_bias import nonlinear_dye_bias_correction
 from .multi_array_idat_batches import check_array_folders
@@ -678,7 +678,7 @@ class SampleDataContainer(SigSet):
             return self.__data_frame
 
         pval_probes_df = _pval_sesame_preprocess(self) if self.pval == True else None
-        pneg_probes_df = _pval_minfi_preprocess(self) if self.pval == True else None
+        pneg_probes_df = _pval_minfi_preprocess_SeSAMe(self) if self.pval == True else None
         # output: df with one column named 'poobah_pval'
         quality_mask_df = _apply_sesame_quality_mask(self) if self.quality_mask == True else None
         # output: df with one column named 'quality_mask' | if not supported array / custom array: returns nothing.

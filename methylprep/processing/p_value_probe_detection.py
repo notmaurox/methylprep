@@ -12,7 +12,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def _pval_sesame_preprocess(data_container):
+def _pval_sesame_preprocess(data_container, inc_neg_ctls=True):
     """Performs p-value detection of low signal/noise probes. This ONE SAMPLE version uses meth/unmeth before it is contructed into a _SampleDataContainer__data_frame.
     - returns a dataframe of probes and their detected p-value levels.
     - this will be saved to the csv output, so it can be used to drop probes at later step.
@@ -44,6 +44,32 @@ def _pval_sesame_preprocess(data_container):
         columns=['poobah_pval'])
     # pval output: index is IlmnID; and threre's one column, 'poobah_pval' with p-values
     pval = pd.concat([pIR,pIG,pII])
+    return pval
+
+# This version of the function more closely matches the score reported by SeSAMe - Mauro 
+def _pval_minfi_preprocess_SeSAMe(data_container):
+    dfR = data_container.ctrl_red
+    dfR = dfR[dfR['Control_Type']=='NEGATIVE']
+    dfR = dfR[['Extended_Type','mean_value']]
+    funcR = ECDF(dfR['mean_value'].values)
+    dfG = data_container.ctrl_green
+    dfG = dfG[dfG['Control_Type']=='NEGATIVE']
+    dfG = dfG[['Extended_Type','mean_value']]
+    funcG = ECDF(dfG['mean_value'].values)
+    pIR = pd.DataFrame(
+        index=data_container.IR.index,
+        data=1-np.maximum(funcR(data_container.IR['Meth']), funcR(data_container.IR['Unmeth'])),
+        columns=['pNegECDF_pval'])
+    pIG = pd.DataFrame(
+        index=data_container.IG.index,
+        data=1-np.maximum(funcG(data_container.IG['Meth']), funcG(data_container.IG['Unmeth'])),
+        columns=['pNegECDF_pval'])
+    pII = pd.DataFrame(
+        index=data_container.II.index,
+        data=1-np.maximum(funcG(data_container.II['Meth']), funcR(data_container.II['Unmeth'])),
+        columns=['pNegECDF_pval'])
+    # concat and sort
+    pval = pd.concat([pIR, pIG, pII])
     return pval
 
 def _pval_minfi_preprocess(data_container):
