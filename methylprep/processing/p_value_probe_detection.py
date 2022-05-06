@@ -11,6 +11,55 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+from pprint import pprint
+
+def _pval_sesame_preinfer(data_container):
+    """Performs p-value detection of low signal/noise probes. This ONE SAMPLE version uses meth/unmeth before it is contructed into a _SampleDataContainer__data_frame.
+    - returns a dataframe of probes and their detected p-value levels.
+    - this will be saved to the csv output, so it can be used to drop probes at later step.
+    - output: index are probes (IlmnID or illumina_id); one column [poobah_pval] contains the sample p-values.
+    - called by pipeline CLI --poobah option.
+    - confirmed that this version produces identical results to the pre-v1.5.0 version on 2021-06-16
+    """
+    # Grab negative control intensity and include in calculation
+    dfG = data_container.ctrl_green
+    dfG = dfG[dfG['Control_Type']=='NEGATIVE']
+    dfG = dfG[['Extended_Type','mean_value']]
+    funcG = ECDF(
+        list(data_container.no_infer_oobG['meth'].values)
+        + list(data_container.no_infer_oobG['unmeth'].values)
+        # + list(dfG['mean_value'].values)
+    )
+    dfR = data_container.ctrl_red
+    dfR = dfR[dfR['Control_Type']=='NEGATIVE']
+    dfR = dfR[['Extended_Type','mean_value']]
+    funcR = ECDF(
+        list(data_container.no_infer_oobR['meth'].values)
+        + list(data_container.no_infer_oobR['unmeth'].values)
+        # + list(dfR['mean_value'].values)
+    )
+    column_name = 'poobah_pval_pre_infer'
+    # Apply ECDFs to probe intensity
+    pIR = pd.DataFrame(
+        index=data_container.IR.index,
+        data=1-np.maximum(funcR(data_container.IR['Meth']), funcR(data_container.IR['Unmeth'])),
+        columns=[column_name])
+    pIG = pd.DataFrame(
+        index=data_container.IG.index,
+        data=1-np.maximum(funcG(data_container.IG['Meth']), funcG(data_container.IG['Unmeth'])),
+        columns=[column_name])
+    pII = pd.DataFrame(
+        index=data_container.II.index,
+        data=1-np.maximum(funcG(data_container.II['Meth']), funcR(data_container.II['Unmeth'])),
+        columns=[column_name])
+    # pval output: index is IlmnID; and threre's one column, 'poobah_pval' with p-values
+    pval = pd.concat([pIR,pIG,pII])
+    # pval_cg = pval[(pval.index.str.contains("cg"))]
+    # print("PREINFER PASS PERC: ",
+    #     len(pval_cg[(pval_cg["poobah_pval_pre_infer"] <= 0.1)])
+    #     / len(pval_cg)
+    # )
+    return pval
 
 def _pval_sesame_preprocess(data_container, inc_neg_ctls=True):
     """Performs p-value detection of low signal/noise probes. This ONE SAMPLE version uses meth/unmeth before it is contructed into a _SampleDataContainer__data_frame.
@@ -21,29 +70,56 @@ def _pval_sesame_preprocess(data_container, inc_neg_ctls=True):
     - confirmed that this version produces identical results to the pre-v1.5.0 version on 2021-06-16
     """
     # 2021-03-22 assumed 'mean_value' for red and green MEANT meth and unmeth (OOBS), respectively.
-    funcG = ECDF(data_container.oobG['Unmeth'].values)
     data_container.data_dict["oobG_mean"] = float(data_container.oobG['Unmeth'].values.mean())
     data_container.data_dict["oobG_std"] = float(data_container.oobG['Unmeth'].values.std())
-    funcR = ECDF(data_container.oobR['Meth'].values)
     data_container.data_dict["oobR_mean"] = float(data_container.oobR['Meth'].values.mean())
     data_container.data_dict["oobR_std"] = float(data_container.oobR['Meth'].values.std())
-    # sns.histplot(data=data_container.oobG['Unmeth'].values)
-    # sns.histplot(data=data_container.oobR['Meth'].values)
-    # plt.show()
+    # Build empirical cumulative distribution functions
+    if inc_neg_ctls:
+        # Grab negative control intensity and include in calculation
+        dfG = data_container.ctrl_green
+        dfG = dfG[dfG['Control_Type']=='NEGATIVE']
+        dfG = dfG[['Extended_Type','mean_value']]
+        funcG = ECDF(
+            list(data_container.oobG['Unmeth'].values)
+            + list(data_container.oobG['Meth'].values)
+            + list(dfG['mean_value'].values)
+        )
+        dfR = data_container.ctrl_red
+        dfR = dfR[dfR['Control_Type']=='NEGATIVE']
+        dfR = dfR[['Extended_Type','mean_value']]
+        funcR = ECDF(
+            list(data_container.oobR['Unmeth'].values)
+            + list(data_container.oobR['Meth'].values)
+            + list(dfR['mean_value'].values)
+        )
+        column_name = 'poobah_pval'
+    else:
+        funcG = ECDF(data_container.oobG['Unmeth'].values)
+        funcR = ECDF(data_container.oobR['Meth'].values)
+        column_name = 'no_neg_poobah_pval'
+
+    # Apply ECDFs to probe intensity
     pIR = pd.DataFrame(
         index=data_container.IR.index,
         data=1-np.maximum(funcR(data_container.IR['Meth']), funcR(data_container.IR['Unmeth'])),
-        columns=['poobah_pval'])
+        columns=[column_name])
     pIG = pd.DataFrame(
         index=data_container.IG.index,
         data=1-np.maximum(funcG(data_container.IG['Meth']), funcG(data_container.IG['Unmeth'])),
-        columns=['poobah_pval'])
+        columns=[column_name])
     pII = pd.DataFrame(
         index=data_container.II.index,
         data=1-np.maximum(funcG(data_container.II['Meth']), funcR(data_container.II['Unmeth'])),
-        columns=['poobah_pval'])
+        columns=[column_name])
     # pval output: index is IlmnID; and threre's one column, 'poobah_pval' with p-values
     pval = pd.concat([pIR,pIG,pII])
+    # if column_name == 'poobah_pval':
+    #     pval_cg = pval[(pval.index.str.contains("cg"))]
+    #     print("POSTINFER PASS PERC: ",
+    #         len(pval_cg[(pval_cg["poobah_pval"] <= 0.1)])
+    #         / len(pval_cg)
+    #     )
     return pval
 
 # This version of the function more closely matches the score reported by SeSAMe - Mauro 

@@ -31,7 +31,7 @@ from .postprocess import (
 )
 from ..utils import ensure_directory_exists, is_file_like
 from .preprocess import preprocess_noob, _apply_sesame_quality_mask
-from .p_value_probe_detection import _pval_sesame_preprocess, _pval_minfi_preprocess, _pval_minfi_preprocess_SeSAMe
+from .p_value_probe_detection import _pval_sesame_preprocess, _pval_minfi_preprocess, _pval_minfi_preprocess_SeSAMe, _pval_sesame_preinfer
 from .infer_channel_switch import infer_type_I_probes
 from .dye_bias import nonlinear_dye_bias_correction
 from .multi_array_idat_batches import check_array_folders
@@ -472,38 +472,55 @@ def run_pipeline(data_dir, array_type=None, export=False, manifest_filepath=None
             LOGGER.info(f"[!] Exported results (csv) to: {export_path_parents}")
 
         if export_poobah:
-            if all(['poobah_pval' in e._SampleDataContainer__data_frame.columns for e in batch_data_containers]):
-                # this option will save a pickled dataframe of the pvalues for all samples, with sample_ids in the column headings and probe names in index.
-                # this sets poobah to false in kwargs, otherwise some pvalues would be NaN I think.
-                df = consolidate_values_for_sheet(
-                    batch_data_containers, postprocess_func_colname='poobah_pval',
-                    bit=bit, poobah=False, poobah_sig=poobah_sig, exclude_rs=True
-                )
-                if not batch_size:
-                    pkl_name = 'poobah_values.pkl'
-                else:
-                    pkl_name = f'poobah_values_{batch_num}.pkl'
-                if df.shape[1] > df.shape[0]:
-                    df = df.transpose() # put probes as columns for faster loading.
-                df = df.sort_index().reindex(sorted(df.columns), axis=1)
-                pd.to_pickle(df, Path(data_dir, pkl_name))
-                LOGGER.info(f"saved {pkl_name}")
-            if all(['pNegECDF_pval' in e._SampleDataContainer__data_frame.columns for e in batch_data_containers]):
-                # this option will save a pickled dataframe of the pvalues for all samples, with sample_ids in the column headings and probe names in index.
-                # this sets poobah to false in kwargs, otherwise some pvalues would be NaN I think.
-                df = consolidate_values_for_sheet(
-                    batch_data_containers, postprocess_func_colname='pNegECDF_pval',
-                    bit=bit, poobah=False, poobah_sig=poobah_sig, exclude_rs=True
-                )
-                if not batch_size:
-                    pkl_name = 'pNegECDF_values.pkl'
-                else:
-                    pkl_name = f'pNegECDF_values_{batch_num}.pkl'
-                if df.shape[1] > df.shape[0]:
-                    df = df.transpose() # put probes as columns for faster loading.
-                df = df.sort_index().reindex(sorted(df.columns), axis=1)
-                pd.to_pickle(df, Path(data_dir, pkl_name))
-                LOGGER.info(f"saved {pkl_name}")
+            for pval_key in ["poobah_pval", "pNegECDF_pval", "no_neg_poobah_pval", "poobah_pval_pre_infer"]:
+                if all([pval_key in e._SampleDataContainer__data_frame.columns for e in batch_data_containers]):
+                    # this option will save a pickled dataframe of the pvalues for all samples, with sample_ids in the column headings and probe names in index.
+                    # this sets poobah to false in kwargs, otherwise some pvalues would be NaN I think.
+                    df = consolidate_values_for_sheet(
+                        batch_data_containers, postprocess_func_colname=pval_key,
+                        bit=bit, poobah=False, poobah_sig=poobah_sig, exclude_rs=True
+                    )
+                    if not batch_size:
+                        pkl_name = f'{pval_key}_values.pkl'
+                    else:
+                        pkl_name = f'{pval_key}_values_{batch_num}.pkl'
+                    if df.shape[1] > df.shape[0]:
+                        df = df.transpose() # put probes as columns for faster loading.
+                    df = df.sort_index().reindex(sorted(df.columns), axis=1)
+                    pd.to_pickle(df, Path(data_dir, pkl_name))
+                    LOGGER.info(f"saved {pkl_name}")
+            # if all(['pNegECDF_pval' in e._SampleDataContainer__data_frame.columns for e in batch_data_containers]):
+            #     # this option will save a pickled dataframe of the pvalues for all samples, with sample_ids in the column headings and probe names in index.
+            #     # this sets poobah to false in kwargs, otherwise some pvalues would be NaN I think.
+            #     df = consolidate_values_for_sheet(
+            #         batch_data_containers, postprocess_func_colname='pNegECDF_pval',
+            #         bit=bit, poobah=False, poobah_sig=poobah_sig, exclude_rs=True
+            #     )
+            #     if not batch_size:
+            #         pkl_name = 'pNegECDF_values.pkl'
+            #     else:
+            #         pkl_name = f'pNegECDF_values_{batch_num}.pkl'
+            #     if df.shape[1] > df.shape[0]:
+            #         df = df.transpose() # put probes as columns for faster loading.
+            #     df = df.sort_index().reindex(sorted(df.columns), axis=1)
+            #     pd.to_pickle(df, Path(data_dir, pkl_name))
+            #     LOGGER.info(f"saved {pkl_name}")
+            # if all(['no_neg_poobah_pval' in e._SampleDataContainer__data_frame.columns for e in batch_data_containers]):
+            #     # this option will save a pickled dataframe of the pvalues for all samples, with sample_ids in the column headings and probe names in index.
+            #     # this sets poobah to false in kwargs, otherwise some pvalues would be NaN I think.
+            #     df = consolidate_values_for_sheet(
+            #         batch_data_containers, postprocess_func_colname='no_neg_poobah_pval',
+            #         bit=bit, poobah=False, poobah_sig=poobah_sig, exclude_rs=True
+            #     )
+            #     if not batch_size:
+            #         pkl_name = 'no_neg_poobah_values.pkl'
+            #     else:
+            #         pkl_name = f'no_neg_poobah_values_{batch_num}.pkl'
+            #     if df.shape[1] > df.shape[0]:
+            #         df = df.transpose() # put probes as columns for faster loading.
+            #     df = df.sort_index().reindex(sorted(df.columns), axis=1)
+            #     pd.to_pickle(df, Path(data_dir, pkl_name))
+            #     LOGGER.info(f"saved {pkl_name}")
 
         # v1.3.0 fixing mem probs: pickling each batch_data_containers object then reloading it later.
         # consolidating data_containers this will break with really large sample sets, so skip here.
@@ -621,6 +638,8 @@ class SampleDataContainer(SigSet):
         self.sesame = sesame # defines offsets in functions
         self.data_type = 'float32' if bit == None else bit # options: (float64, float32, or float16)
         self.data_dict = {}
+        self.data_dict["sample_id"] = self.sample.sentrix_id
+        self.data_dict["sample_pos"] = self.sample.sentrix_position
         if debug:
             print(f'DEBUG SDC: sesame {self.sesame} switch {self.switch_probes} noob {self.do_noob} poobah {self.pval} mask {self.quality_mask}, dye {self.do_nonlinear_dye_bias}')
 
@@ -678,6 +697,8 @@ class SampleDataContainer(SigSet):
             return self.__data_frame
 
         pval_probes_df = _pval_sesame_preprocess(self) if self.pval == True else None
+        pval_probes_df_no_neg = _pval_sesame_preprocess(self, inc_neg_ctls=False) if self.pval == True else None
+        pval_probes_df_no_infer = _pval_sesame_preinfer(self)
         pneg_probes_df = _pval_minfi_preprocess_SeSAMe(self) if self.pval == True else None
         # output: df with one column named 'poobah_pval'
         quality_mask_df = _apply_sesame_quality_mask(self) if self.quality_mask == True else None
@@ -735,6 +756,12 @@ class SampleDataContainer(SigSet):
             # Add in pNegECDF p val column
             pneg_probes_df = pneg_probes_df.loc[ ~pval_probes_df.index.duplicated()]
             self.__data_frame = self.__data_frame.join(pneg_probes_df, how='inner')
+            # Add in pOOBAH no neg ctl p val column
+            pval_probes_df_no_neg = pval_probes_df_no_neg.loc[ ~pval_probes_df.index.duplicated()]
+            self.__data_frame = self.__data_frame.join(pval_probes_df_no_neg, how='inner')
+            # Add in pOOBAH pre channel infer p val column
+            pval_probes_df_no_infer = pval_probes_df_no_infer.loc[ ~pval_probes_df.index.duplicated()]
+            self.__data_frame = self.__data_frame.join(pval_probes_df_no_infer, how='inner')
 
         self.check_for_probe_loss(f"preprocess_noob sesame={self.sesame} --> {self.methylated.shape} {self.unmethylated.shape}")
 

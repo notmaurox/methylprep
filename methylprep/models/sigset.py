@@ -266,22 +266,12 @@ class SigSet():
                 probe_means = probe_means[ probe_means.illumina_id.isin(probe_ids) ]
                 if len(probe_ids) == 0:
                     LOGGER.error(f"SigSet.init(): no probes matched for {subset}:{part}")
-                #************ DEBUG ***********#
-                if debug:
-                    #print(f"DEBUG duplicated probe_ids (from manifest): {len( probe_ids[probe_ids.duplicated(keep=False)] )}")
-                    duped = len( probe_ids[probe_ids.duplicated(keep=False)] )
-                    dupe_msg = f"-- {duped} multiprobes" if duped != 0 else ''
-                    means_msg = probe_means.shape if probe_means.shape[0] != probe_ids.shape[0] else 'OK'
-                    print(f"DEBUG {subset} -- {part}: {probe_ids.shape} -- {means_msg} {dupe_msg}")
-                # 2021-11-29: confirmed that all 361821 mouse means in IDAT DO get read. 4622 of these are control probes, but
-                # methylprep only uses 633 of them (matching 635 EPIC probes for QC).
-                # 919 of these probes are duplicates having the same illumina_id but different IlmnIDs (TC11, TC12, TC13 etc..) that dont merge right.
-                #if subset == 'methylated' and part == 'IR-B-Meth':
 
-                #************ DEBUG ***********#
                 # merge and establish IlmnIDs from illumina_ids here
+                # probe_means is address and intensity.
                 ref_probe_names = ref[['AddressA_ID', 'AddressB_ID']].reset_index()
-                probe_subset_data = ref_probe_names.merge(probe_means, how='inner',
+                probe_subset_data = ref_probe_names.merge(
+                    probe_means, how='inner',
                     left_on=i['probe_address'],
                     right_on='illumina_id')
                 probe_subset_data['used'] = self.address_code[i['probe_address']]
@@ -298,7 +288,6 @@ class SigSet():
                 #    import pdb;pdb.set_trace()
                 probe_subset_data = probe_subset_data.set_index('IlmnID')
                 data_frames[part] = probe_subset_data
-
             try:
                 # here, put the meth and unmeth parts into separate columns as we combine
                 meth_parts = [frame for frame in data_frames.values() if 'Meth' in frame.columns]
@@ -421,73 +410,6 @@ class SigSet():
         self.__bg_corrected = True
         self.__minfi_noob = False
         self.__linear_dye = True if red_factor is not None else False
-
-    """
-    # from raw_dataset; may no longer be needed, but kept for testing against new approach 2021
-    def get_oob_controls(self, green_idat, red_idat, manifest, include_rs=True):
-        ''' Out-of-bound controls are the mean intensity values for the
-        channel in the opposite channel's probes (IG oob and IR oob)
-
-.. todo::
-    TEST -- does this give same output as SigSet.oobG and oobR?
-        '''
-        param_sets = [
-            {'channel': Channel.RED, 'idat': green_idat, 'manifest': manifest},
-            {'channel': Channel.GREEN, 'idat': red_idat, 'manifest': manifest},
-        ]
-
-        for channel_params in param_sets:
-            channel = channel_params['channel']
-            idat_dataset = channel_params['idat']
-            manifest = channel_params['manifest']
-            probe_means = idat_dataset.probe_means # index matches AddressA_ID or AddressB_ID, depending on RED/GREEN channel
-
-            probes = manifest.get_probe_details(
-                probe_type=ProbeType.ONE, # returns IR or IG cgxxxx probes only
-                channel=channel,
-            )[['AddressA_ID', 'AddressB_ID']]
-            if include_rs:
-                snp_probes = manifest.get_probe_details(
-                    probe_type=ProbeType.SNP_ONE,
-                    channel=channel,
-                )[['AddressA_ID', 'AddressB_ID']]
-                probes = pd.concat([probes, snp_probes])
-
-            if channel == Channel.RED:
-                oobG = probes.merge(
-                    probe_means, # green channel X AddresB (meth) channel
-                    how='inner',
-                    left_on='AddressB_ID',
-                    right_index=True,
-                    suffixes=(False, False),
-                ).rename(columns={'mean_value': 'Meth'})
-                oobG = oobG.merge(
-                    probe_means, # green channel X AddresA (unmeth) channel
-                    how='inner',
-                    left_on='AddressA_ID',
-                    right_index=True,
-                    suffixes=(False, False),
-                ).rename(columns={'mean_value': 'Unmeth'}).sort_values('IlmnID')
-                oobG.drop(['AddressA_ID', 'AddressB_ID'], axis=1)
-
-            if channel == Channel.GREEN:
-                oobR = probes.merge(
-                    probe_means, # red channel X AddressB for (meth)
-                    how='inner',
-                    left_on='AddressB_ID',
-                    right_index=True,
-                    suffixes=(False, False),
-                ).rename(columns={'mean_value': 'Meth'}).sort_values('IlmnID')
-                oobR = oobR.merge(
-                    probe_means, # red channel X AddressA for (unmeth)
-                    how='inner',
-                    left_on='AddressA_ID',
-                    right_index=True,
-                    suffixes=(False, False),
-                ).rename(columns={'mean_value': 'Unmeth'})
-                oobR.drop(['AddressA_ID', 'AddressB_ID'], axis=1)
-        return (oobG.sort_index(), oobR.sort_index())
-    """
 
     # from raw_dataset
     def filter_oob_probes(self, channel, manifest, idat_dataset, include_rs=True):

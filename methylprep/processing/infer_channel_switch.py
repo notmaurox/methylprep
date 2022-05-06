@@ -16,7 +16,9 @@ def infer_type_I_probes(container, debug=False):
     -- changes raw_data idat probe_means
     -- runs on raw_dataset, before meth-dataset is created, so @IR property doesn't exist yet; but get_infer has this"""
     # this first step combines all I-red and I-green channel intensities, so IG+oobG and IR+oobR.
-    channels = get_infer_channel_probes(container.manifest, container.green_idat, container.red_idat, debug=debug)
+    channels = get_infer_channel_probes(container.manifest, container.green_idat, container.red_idat, debug=True)
+    container.no_infer_oobR = channels["oobR"]
+    container.no_infer_oobG = channels["oobG"]
     green_I_channel = channels['green']
     red_I_channel = channels['red']
     ## NAN probes occurs when manifest is not complete
@@ -50,8 +52,6 @@ def infer_type_I_probes(container, debug=False):
     FailedR = sum(np.where(red_I_channel.index.isin(channels['IR'].index) & ~big_idx, True, False))
     FailedG = sum(np.where(green_I_channel.index.isin(channels['IG'].index) & ~big_idx, True, False))
 
-    container.data_dict["sample_id"] = container.sample.sentrix_id
-    container.data_dict["sample_pos"] = container.sample.sentrix_position
     container.data_dict["min_ib"] = min_ib
     container.data_dict["percent_swapped"] = round(100-percent_probes_ok, 3)
     container.data_dict["count_swapped"] = count_probes_to_swap
@@ -96,8 +96,6 @@ def infer_type_I_probes(container, debug=False):
     container.red_idat.probe_means = post_red
     container.green_idat.probe_means = post_green
     return
-
-
 
 def get_infer_channel_probes(manifest, green_idat, red_idat, debug=False):
     """ like filter_oob_probes, but returns two dataframes for green and red channels with meth and unmeth columns
