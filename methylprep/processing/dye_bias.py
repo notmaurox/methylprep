@@ -110,8 +110,9 @@ def nonlinear_dye_bias_correction(container, debug=False):
     """
     container._SigSet__dye_bias_corrected = False # sets to true when successful; otherwise, will run linear correction if sample fails.
 
-    if not isinstance(container, methylprep.processing.SampleDataContainer):
-        raise TypeError("You must provide a sample data container object.")
+    # Commented out to enable custom SampleDataContainer implementation for streamlined analysis
+    # if not isinstance(container, methylprep.processing.SampleDataContainer):
+    #     raise TypeError("You must provide a sample data container object.")
     if debug:
         import matplotlib.pyplot as plt # not required by package for normal users
 
